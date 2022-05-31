@@ -34,10 +34,6 @@ contract MintStateTransitions is ERC1155{
     address  payable owner;
 
 
-    uint256[]  ids= [46,93];
-    uint256[]  prices;
-    //  = [1 ether, 0.5 ether];
-    uint256[]  maxAmounts = [10,20];
 
 
     enum MintStage {
@@ -68,19 +64,35 @@ contract MintStateTransitions is ERC1155{
  error InvalidAddress();
  error FunctionInvalidAtThisStage();
  error ErrorNFTReserves();
+ event NFTReservesUpdated();
+
  
- address devAddress = 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
- address beneficiary = 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
+  //Example inputs 
+ address devAddress; 
+ //= 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
+ address beneficiary;
+ //= 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
  mapping (address => uint ) pendingWithdrawal;
 
- event NFTReservesUpdated();
+    uint256[]  ids;
+    //= [46,93];
+    uint256[]  prices;
+    //  = [1 ether, 0.5 ether];
+    uint256[]  maxAmounts;
+    //= [10,20];
+
+
+ 
+
 //[46,93]
 //["1000000000000000000","500000000000000000"]
 // [10,20]
     constructor(
-        // uint[] memory tokenIds_,
-        uint[] memory prices_
-        // uint[] memory amounts_
+        uint[] memory tokenIds_,
+        uint[] memory prices_,
+        uint[] memory maxAmounts_,
+        address beneficiary_,
+        address devAddress_
         ) 
         ERC1155(_baseURI)
         payable
@@ -89,6 +101,10 @@ contract MintStateTransitions is ERC1155{
 
             owner = payable(msg.sender);
             prices = prices_;
+            tokenIds = tokenIds_;
+            amounts  = amounts_;
+            beneficiary = beneficary_;
+            devAddress = devAddress_;
             require(ids.length == prices.length && ids.length == maxAmounts.length,"TokenIDs, TokenPrices and TokenAmounts should be of the same length");
 
                for(uint i =0; i< ids.length; i++) {
