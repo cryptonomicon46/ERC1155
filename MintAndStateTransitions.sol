@@ -4,15 +4,17 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol"; //Safemath no longer n
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 
-contract MintStateTransitions is ERC1155{
+contract MintAndStateTransitions is ERC1155{
     using Strings for string;
     using SafeMath for uint256;
+
+    //Token URI variables
     string _baseURI = "https://ipfs.io/ipfs/QmcDRWwXCE1LjvdESNZsmc75syTJP2zA8WW9SHEaCwEmkc/";
+    mapping (uint256=>  string) _tokenURI; //TokenId to tokenURI mapping
     string baseExtension = ".json";
 
-    uint startedAt;
-    uint DURATION = 7 days; //Mint only available for 7 days
-    uint endAt;
+
+    //NFT reserves traking and payout variables
     uint _royaltyFee = 5;
 
     //Track the NFT Info to check for reserves
@@ -22,19 +24,19 @@ contract MintStateTransitions is ERC1155{
         uint reserves;
        }
 
-    mapping (uint256=>  string) _tokenURI; //TokenId to tokenURI mapping
-
-
     NFTInfo[]  nftInfo;
 
     //Track Token Index to Id
     mapping(uint =>uint ) _idToidx;
 
-
+    //To track the owner who deployed the contract
     address  payable owner;
 
 
-
+//   Timed Transaction variables 
+    uint startedAt;
+    uint DURATION = 7 days; //Mint only available for 7 days
+    uint endAt;
 
     enum MintStage {
         MintLive,
@@ -49,46 +51,56 @@ contract MintStateTransitions is ERC1155{
     }
 
 
+    
     modifier atMintStage(MintStage mintStage_) {
         if (mintStage != mintStage_) revert FunctionInvalidAtThisStage();
         _;
 
     }
    
+   //NoReentrant Call function modifier
+    bool locked;
+   modifier noReentrancy() {
+       require(!locked,"Reentrant Call");
+       locked = true;
+       _;
+       locked = false;
+       _;
+   }
 
     function nextMintStage() internal {
         mintStage = MintStage(uint(mintStage)+1);
     }
-    uint maxMintAmount = 100;
 
- error InvalidAddress();
- error FunctionInvalidAtThisStage();
- error ErrorNFTReserves();
- event NFTReservesUpdated();
+    //The various events and errors 
 
+    error InvalidAddress();
+    error FunctionInvalidAtThisStage();
+    error ErrorNFTReserves();
+    event NFTReservesUpdated();
+    event Withdraw();
  
-  //Example inputs 
- address devAddress; 
- //= 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
- address beneficiary;
- //= 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
- mapping (address => uint ) pendingWithdrawal;
+  //Example inputs for debug
+    address devAddress; 
+    //= 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
+    address beneficiary;
+    //= 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
+    mapping (address => uint ) pendingWithdrawal;
 
     uint256[]  ids;
     //= [46,93];
     uint256[]  prices;
     //  = [1 ether, 0.5 ether];
+    //If using Remix, use the following format for price inputs
+    //["1000000000000000000","500000000000000000"]
     uint256[]  maxAmounts;
     //= [10,20];
-
+    uint maxMintAmount = 100;
 
  
 
-//[46,93]
-//["1000000000000000000","500000000000000000"]
-// [10,20]
     constructor(
-        uint[] memory tokenIds_,
+        uint[] memory ids_,
         uint[] memory prices_,
         uint[] memory maxAmounts_,
         address beneficiary_,
@@ -101,9 +113,9 @@ contract MintStateTransitions is ERC1155{
 
             owner = payable(msg.sender);
             prices = prices_;
-            tokenIds = tokenIds_;
-            amounts  = amounts_;
-            beneficiary = beneficary_;
+            ids = ids_;
+            maxAmounts  = maxAmounts_;
+            beneficiary = beneficiary_;
             devAddress = devAddress_;
             require(ids.length == prices.length && ids.length == maxAmounts.length,"TokenIDs, TokenPrices and TokenAmounts should be of the same length");
 
@@ -190,6 +202,24 @@ contract MintStateTransitions is ERC1155{
         nftInfo[_idx].reserves -= amount;
         emit NFTReservesUpdated();
     }
+
+
+
+function withdraw() external payable noReentrancy {
+        uint256 amount = pendingWithdrawal[msg.sender];
+        // if (amount <=0) revert NothingToWithdraw();
+
+        pendingWithdrawal[msg.sender] = 0;
+        // payable(msg.sender).transfer(amount);
+        //Since the transfer method is no longer safe to use due to gas cost fluctiation, only sends 2300 gas
+        //Call forwards all the gas, risk of reentrance attack, so use reentrance guard modifier
+        (bool success2,) = payable(msg.sender).call{value: amount}("");
+        require(success2,"Owner payment transaction failed!");
+
+    emit Withdraw();
+
+    }
+
 
 }
 
